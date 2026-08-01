@@ -26,4 +26,4 @@ jobs:
         run: pip install pytest
 
       - name: Run Devin gate tests
-        run: pytest tests/devin_gate/ -q --no-header
+        run: pytest devin_gate_tests/ -q --no-header
