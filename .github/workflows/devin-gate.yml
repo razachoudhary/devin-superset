@@ -14,21 +14,16 @@ concurrency:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
 
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -e . --no-deps
-          pip install pytest pytest-mock marshmallow "sqlglot>=30.12,<31"
+      - name: Install pytest
+        run: pip install pytest
 
-      - name: Run scoped unit tests
-        run: |
-          pytest tests/unit_tests/schemas/ -q --no-header
+      - name: Run Devin gate tests
+        run: pytest tests/devin_gate/ -q --no-header
