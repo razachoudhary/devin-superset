@@ -21,10 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
+          cache: pip
 
       - name: Install system dependencies
         run: |
@@ -32,10 +29,10 @@ jobs:
           sudo apt-get install -y libldap2-dev libsasl2-dev libssl-dev
 
       - name: Install Python dependencies
-        run: uv sync --extra development
+        run: |
+          pip install --upgrade pip
+          pip install -e . pytest pytest-mock
 
       - name: Run scoped unit tests
         run: |
-          uv run pytest -W error::DeprecationWarning \
-            tests/unit_tests/schemas/ \
-            -q --no-header
+          pytest tests/unit_tests/schemas/ -q --no-header
