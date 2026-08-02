@@ -16,7 +16,11 @@
 # under the License.
 # pylint: disable=import-outside-toplevel, unused-argument, redefined-outer-name, invalid-name
 
+import hashlib
+import importlib.util
+import sys
 from functools import partial
+from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 import pytest
@@ -71,6 +75,56 @@ def test_oversized_version_history_retention_env_uses_default(
 
     assert config._parse_version_history_retention_days() == 30
     assert "exceeds the maximum" in caplog.text
+
+
+def test_config_fingerprint_digests_the_given_bytes() -> None:
+    """The fingerprint is a 12-char md5 prefix of the bytes that were loaded."""
+    from superset import config
+
+    source = b"FOO = 1\n"
+
+    assert (
+        config._config_fingerprint(source) == hashlib.md5(source).hexdigest()[:12]  # noqa: S324
+    )
+    assert len(config._config_fingerprint(source)) == 12
+    assert config._config_fingerprint(b"FOO = 2\n") != config._config_fingerprint(
+        source
+    )
+
+
+def test_config_fingerprint_reports_unreadable_source() -> None:
+    """An unreadable config file yields a sentinel rather than raising."""
+    from superset import config
+
+    assert config._config_fingerprint(None) == "unreadable"
+
+
+def test_config_path_env_var_applies_overrides_from_the_bytes_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """SUPERSET_CONFIG_PATH overrides come from the exact bytes read once."""
+    from superset import config
+
+    cfg_path = tmp_path / "superset_config_override.py"
+    source = b"SQLALCHEMY_DATABASE_URI = 'sqlite://override'\nlowercase = 'ignored'\n"
+    cfg_path.write_bytes(source)
+
+    monkeypatch.setenv("SUPERSET_CONFIG_PATH", str(cfg_path))
+    monkeypatch.delitem(sys.modules, "superset_config", raising=False)
+
+    module_name = "superset_config_under_test"
+    spec = importlib.util.spec_from_file_location(module_name, config.__file__)
+    assert spec is not None
+    assert spec.loader is not None
+    reloaded = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, module_name, reloaded)
+    spec.loader.exec_module(reloaded)
+
+    assert reloaded.SQLALCHEMY_DATABASE_URI == "sqlite://override"
+    assert not hasattr(reloaded, "lowercase")
+    assert f"md5:{config._config_fingerprint(source)}" in capsys.readouterr().out
 
 
 def apply_dttm_defaults(table: "SqlaTable", dttm_defaults: dict[str, Any]) -> None:
