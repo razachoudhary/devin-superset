@@ -18,6 +18,7 @@
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+from selenium.webdriver.common.by import By
 
 from superset.utils.webdriver import (
     check_playwright_availability,
@@ -302,6 +303,29 @@ class TestWebDriverSelenium:
         with patch.object(driver, "_create", return_value=mock_driver):
             assert driver.driver is mock_driver
         mock_driver.set_page_load_timeout.assert_not_called()
+
+    @patch("superset.utils.webdriver.app")
+    @patch("superset.utils.webdriver.WebDriverWait")
+    @patch("superset.utils.webdriver.EC")
+    def test_find_unexpected_errors_waits_on_modal_container(
+        self, mock_ec: MagicMock, mock_wait: MagicMock, mock_app_patch: MagicMock
+    ) -> None:
+        """Error capture must wait on the Ant Design v6 modal wrapper class."""
+        mock_app_patch.config = {
+            "SCREENSHOT_WAIT_FOR_ERROR_MODAL_VISIBLE": 10,
+            "SCREENSHOT_WAIT_FOR_ERROR_MODAL_INVISIBLE": 10,
+        }
+        mock_driver = MagicMock()
+        mock_driver.find_elements.return_value = [MagicMock()]
+        mock_modal = MagicMock()
+        mock_modal.find_element.return_value.get_attribute.return_value = "<p>err</p>"
+        mock_wait.return_value.until.return_value = [mock_modal]
+
+        WebDriverSelenium.find_unexpected_errors(mock_driver)
+
+        mock_ec.visibility_of_any_elements_located.assert_called_once_with(
+            (By.CLASS_NAME, "ant-modal-container")
+        )
 
 
 class TestPlaywrightAvailabilityCheck:
@@ -661,6 +685,27 @@ class TestWebDriverPlaywrightErrorHandling:
         assert result == ["Error message"]
         mock_button.click.assert_called_once()
         mock_close_button.click.assert_called_once()
+
+    @patch("superset.utils.webdriver.PLAYWRIGHT_AVAILABLE", True)
+    @patch("superset.utils.webdriver.sync_playwright")
+    @patch("superset.utils.webdriver.logger")
+    def test_find_unexpected_errors_locates_modal_container(
+        self, mock_logger, mock_sync_playwright
+    ):
+        """Error capture must target the Ant Design v6 modal wrapper class."""
+        mock_page = MagicMock()
+        mock_page.get_by_role.return_value.all.return_value = [MagicMock()]
+        mock_page.locator.return_value.text_content.return_value = "Error message"
+        mock_page.locator.return_value.inner_html.return_value = "Error message"
+
+        WebDriverPlaywright.find_unexpected_errors(mock_page)
+
+        assert [c.args[0] for c in mock_page.locator.call_args_list] == [
+            ".ant-modal-container",
+            ".ant-modal-container .ant-modal-body",
+            ".ant-modal-container .ant-modal-close",
+            ".ant-modal-container",
+        ]
 
     @patch("superset.utils.webdriver.PLAYWRIGHT_AVAILABLE", True)
     @patch("superset.utils.webdriver._browser_manager")
