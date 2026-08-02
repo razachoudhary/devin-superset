@@ -21,6 +21,7 @@ module is evaluated under a controlled environment without reloading (and
 mutating) the config module shared by the rest of the test session.
 """
 
+import importlib
 import os
 import subprocess
 import sys
@@ -75,3 +76,51 @@ def test_fab_api_swagger_ui_is_env_driven_and_off_by_default(
 ) -> None:
     """Swagger UI defaults to off and follows ``SUPERSET_ENABLE_SWAGGER_UI``."""
     assert _resolve_swagger_default(env_value) == expected
+
+
+ID_RISON_SCHEMA_MODULES = [
+    ("superset.annotation_layers.annotations.schemas", "get_delete_ids_schema"),
+    ("superset.annotation_layers.schemas", "get_delete_ids_schema"),
+    ("superset.charts.schemas", "get_delete_ids_schema"),
+    ("superset.charts.schemas", "get_export_ids_schema"),
+    ("superset.charts.schemas", "get_fav_star_ids_schema"),
+    ("superset.css_templates.schemas", "get_delete_ids_schema"),
+    ("superset.dashboards.schemas", "get_delete_ids_schema"),
+    ("superset.dashboards.schemas", "get_export_ids_schema"),
+    ("superset.dashboards.schemas", "get_fav_star_ids_schema"),
+    ("superset.databases.schemas", "get_export_ids_schema"),
+    ("superset.datasets.schemas", "get_delete_ids_schema"),
+    ("superset.datasets.schemas", "get_export_ids_schema"),
+    ("superset.queries.saved_queries.schemas", "get_delete_ids_schema"),
+    ("superset.queries.saved_queries.schemas", "get_export_ids_schema"),
+    ("superset.reports.schemas", "get_delete_ids_schema"),
+    ("superset.row_level_security.schemas", "get_delete_ids_schema"),
+    ("superset.tasks.schemas", "get_delete_ids_schema"),
+    ("superset.themes.schemas", "get_delete_ids_schema"),
+    ("superset.themes.schemas", "get_export_ids_schema"),
+]
+
+_ITEM_TYPES = {"integer": int, "string": str}
+
+
+@pytest.mark.parametrize(
+    "module_name, schema_name",
+    ID_RISON_SCHEMA_MODULES,
+    ids=[f"{module}:{name}" for module, name in ID_RISON_SCHEMA_MODULES],
+)
+def test_id_rison_schemas_declare_swagger_example(
+    module_name: str, schema_name: str
+) -> None:
+    """Every id-array rison query-parameter schema carries an ``example``.
+
+    Swagger UI pre-fills "Try it out" from the parameter's ``example``; without
+    one it submits an empty/invalid rison value and the request 400s. The
+    example must be a non-empty list matching the schema's declared item type.
+    """
+    schema = getattr(importlib.import_module(module_name), schema_name)
+    example = schema.get("example")
+    message = f"{module_name}.{schema_name} is missing a non-empty 'example'"
+    assert isinstance(example, list), message
+    assert example, message
+    item_type = _ITEM_TYPES[schema["items"]["type"]]
+    assert all(isinstance(item, item_type) for item in example)
