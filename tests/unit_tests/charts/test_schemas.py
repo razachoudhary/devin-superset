@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import Any
+
 import pytest
 from flask import current_app
 from marshmallow import ValidationError
@@ -27,6 +29,9 @@ from superset.charts.schemas import (
     ChartPostSchema,
     ChartPutSchema,
     DEFAULT_MAX_PROPHET_PERIODS,
+    get_delete_ids_schema,
+    get_export_ids_schema,
+    get_fav_star_ids_schema,
     get_max_prophet_periods,
     get_time_grain_choices,
 )
@@ -435,3 +440,25 @@ def test_chart_data_extras_rejects_system_sampling(app_context: None) -> None:
     with pytest.raises(ValidationError) as exc_info:
         ChartDataExtrasSchema().load({"system_sampling": True})
     assert "system_sampling" in exc_info.value.messages
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        get_delete_ids_schema,
+        get_export_ids_schema,
+        get_fav_star_ids_schema,
+    ],
+)
+def test_chart_id_rison_schemas_declare_swagger_example(
+    schema: dict[str, Any],
+) -> None:
+    """
+    The rison id-array query-parameter schemas must carry an ``example``.
+    Without it Swagger UI's "Try it out" pre-fills an empty/invalid value for
+    the parameter and the resulting request fails with a 400.
+    """
+    example = schema.get("example")
+    assert isinstance(example, list)
+    assert example
+    assert all(isinstance(item, int) for item in example)
