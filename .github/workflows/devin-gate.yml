@@ -14,16 +14,19 @@ concurrency:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 40
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      SUPERSET_TESTENV: true
+      SUPERSET_SECRET_KEY: not-a-secret
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python and install Superset with test dependencies
+        uses: ./.github/actions/setup-backend/
         with:
           python-version: "3.11"
+          requirements-type: dev
 
-      - name: Install test dependencies
-        run: pip install pytest pandas numpy
-
-      - name: Run Devin gate tests
-        run: pytest devin_gate_tests/ -q --no-header
+      - name: Run unit tests
+        run: pytest tests/unit_tests -q --no-header
