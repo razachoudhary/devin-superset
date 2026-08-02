@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install test dependencies
+        run: pip install pytest pandas numpy
 
       - name: Run Devin gate tests
         run: pytest devin_gate_tests/ -q --no-header
