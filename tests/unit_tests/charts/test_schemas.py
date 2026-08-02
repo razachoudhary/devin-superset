@@ -435,3 +435,27 @@ def test_chart_data_extras_rejects_system_sampling(app_context: None) -> None:
     with pytest.raises(ValidationError) as exc_info:
         ChartDataExtrasSchema().load({"system_sampling": True})
     assert "system_sampling" in exc_info.value.messages
+
+
+def test_chart_data_query_object_schema_renames_zero_timeseries_limit(
+    app_context: None,
+) -> None:
+    """A ``timeseries_limit`` of ``0`` is renamed, not dropped."""
+    schema = ChartDataQueryObjectSchema()
+
+    result = schema.load({"timeseries_limit": 0})
+    assert result.get("series_limit") == 0
+    assert "timeseries_limit" not in result
+
+    result = schema.load({"timeseries_limit": 5})
+    assert result.get("series_limit") == 5
+    assert "timeseries_limit" not in result
+
+    result = schema.load({"timeseries_limit_metric": "count"})
+    assert result.get("series_limit_metric") == "count"
+    assert "timeseries_limit_metric" not in result
+
+    # absent deprecated keys leave the canonical keys untouched
+    result = schema.load({"series_limit": 10, "series_limit_metric": "count"})
+    assert result.get("series_limit") == 10
+    assert result.get("series_limit_metric") == "count"
